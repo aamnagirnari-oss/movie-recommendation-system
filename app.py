@@ -11,8 +11,8 @@ st.set_page_config(page_title="Movie Recommender", layout="wide")
 # ---------------- LOAD DATA (CACHED) ----------------
 @st.cache_data
 def load_data():
-    ratings = pd.read_csv("data/ratings.csv")
-    movies = pd.read_csv("data/movies.csv")
+    ratings = pd.read_csv("ratings.csv")
+    movies = pd.read_csv("movies.csv")
     return pd.merge(ratings, movies, on="movieId")
 
 data = load_data()
