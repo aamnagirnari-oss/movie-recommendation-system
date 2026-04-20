@@ -9,10 +9,14 @@ import os
 st.set_page_config(page_title="Movie Recommender", layout="wide")
 
 # ---------------- LOAD DATA (CACHED) ----------------
+# ---------------- LOAD DATA (CACHED) ----------------
 @st.cache_data
-ratings = pd.read_csv("ratings.csv")
-movies = pd.read_csv("movies.csv")
-data = pd.merge(ratings, movies, on="movieId")
+def load_data():
+    ratings = pd.read_csv("ratings.csv")
+    movies = pd.read_csv("movies.csv")
+    return pd.merge(ratings, movies, on="movieId")
+
+data = load_data()
 # ---------------- CREATE MATRIX ----------------
 @st.cache_data
 def create_matrix(data):
