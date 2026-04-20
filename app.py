@@ -8,8 +8,14 @@ import time
 st.set_page_config(page_title="Movie Recommender", layout="wide")
 
 # ---------------- LOAD DATA ----------------
-ratings = pd.read_csv("data/ratings.csv")
-movies = pd.read_csv("data/movies.csv")
+# Try data/ folder first (local), else root (Streamlit)
+if os.path.exists("data/ratings.csv"):
+    ratings = pd.read_csv("data/ratings.csv")
+    movies = pd.read_csv("data/movies.csv")
+else:
+    ratings = pd.read_csv("ratings.csv")
+    movies = pd.read_csv("movies.csv")
+
 data = pd.merge(ratings, movies, on="movieId")
 
 # ---------------- MATRIX ----------------
