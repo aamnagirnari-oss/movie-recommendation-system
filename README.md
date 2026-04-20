@@ -38,6 +38,20 @@ streamlit run app.py
 * Improve UI (Netflix-style grid)
 * Add evaluation metrics (Precision@K)
 
+## Project Workflow
+
+This project was developed step-by-step:
+
+1. Data exploration and visualization  
+2. Correlation-based recommendation system  
+3. SVD-based collaborative filtering  
+4. Weighted ranking (IMDb-style)  
+5. Model comparison  
+6. Evaluation using Precision@K  
+
+See full analysis in:
+movie_recommendation_analysis.ipynb
+
 ##  Author
 
 MSc Big Data Analytics Student
