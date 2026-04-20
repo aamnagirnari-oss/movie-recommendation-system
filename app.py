@@ -9,7 +9,6 @@ import os
 st.set_page_config(page_title="Movie Recommender", layout="wide")
 
 # ---------------- LOAD DATA (CACHED) ----------------
-# ---------------- LOAD DATA (CACHED) ----------------
 @st.cache_data
 def load_data():
     ratings = pd.read_csv("ratings.csv")
