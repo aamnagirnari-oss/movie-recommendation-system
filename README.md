@@ -21,7 +21,7 @@ A machine learning-based movie recommendation system built using collaborative f
 
 MovieLens Dataset (ratings + movies)
 
-## ▶ Run the App
+##  Run the App
 
 ```bash
 streamlit run app.py
