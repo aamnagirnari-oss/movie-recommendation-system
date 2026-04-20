@@ -8,38 +8,41 @@ import os
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="Movie Recommender", layout="wide")
 
-# ---------------- LOAD DATA ----------------
-# Try data/ folder first (local), else root (Streamlit)
-if os.path.exists("data/ratings.csv"):
-    ratings = pd.read_csv("data/ratings.csv")
-    movies = pd.read_csv("data/movies.csv")
-else:
-    ratings = pd.read_csv("ratings.csv")
-    movies = pd.read_csv("movies.csv")
+# ---------------- LOAD DATA (CACHED) ----------------
+@st.cache_data
+def load_data():
+    if os.path.exists("data/ratings.csv"):
+        ratings = pd.read_csv("data/ratings.csv")
+        movies = pd.read_csv("data/movies.csv")
+    else:
+        ratings = pd.read_csv("ratings.csv")
+        movies = pd.read_csv("movies.csv")
 
-data = pd.merge(ratings, movies, on="movieId")
+    return pd.merge(ratings, movies, on="movieId")
 
-# ---------------- MATRIX ----------------
-user_movie_matrix = data.pivot_table(index='userId', columns='title', values='rating').fillna(0)
+data = load_data()
 
-# ---------------- SVD ----------------
-svd = TruncatedSVD(n_components=20)
-latent_matrix = svd.fit_transform(user_movie_matrix)
+# ---------------- CREATE MATRIX ----------------
+@st.cache_data
+def create_matrix(data):
+    return data.pivot_table(index='userId', columns='title', values='rating').fillna(0)
 
-# ---------------- USER SIMILARITY ----------------
-user_similarity = cosine_similarity(latent_matrix)
-user_similarity_df = pd.DataFrame(user_similarity,
-                                 index=user_movie_matrix.index,
-                                 columns=user_movie_matrix.index)
+user_movie_matrix = create_matrix(data)
 
-# ---------------- MOVIE SIMILARITY ----------------
-movie_matrix = user_movie_matrix.T
-movie_similarity = cosine_similarity(movie_matrix)
-movie_similarity_df = pd.DataFrame(movie_similarity,
-                                  index=movie_matrix.index,
-                                  columns=movie_matrix.index)
+# ---------------- SVD + SIMILARITY ----------------
+@st.cache_data
+def compute_similarity(matrix):
+    svd = TruncatedSVD(n_components=10)  # reduced for cloud
+    latent_matrix = svd.fit_transform(matrix)
 
-# ---------------- USER RECOMMEND ----------------
+    similarity = cosine_similarity(latent_matrix)
+    return pd.DataFrame(similarity,
+                        index=matrix.index,
+                        columns=matrix.index)
+
+user_similarity_df = compute_similarity(user_movie_matrix)
+
+# ---------------- RECOMMEND FUNCTION ----------------
 def recommend_for_user(user_id, top_n=10, min_ratings=10):
     if user_id not in user_similarity_df.index:
         return pd.DataFrame()
@@ -48,6 +51,7 @@ def recommend_for_user(user_id, top_n=10, min_ratings=10):
     top_users = similar_users.head(20).index
 
     rec = data[data['userId'].isin(top_users)]
+
     watched = data[data['userId'] == user_id]['title']
     rec = rec[~rec['title'].isin(watched)]
 
@@ -66,80 +70,34 @@ def recommend_for_user(user_id, top_n=10, min_ratings=10):
 
     return agg.sort_values('score', ascending=False).head(top_n)
 
-# ---------------- MOVIE RECOMMEND ----------------
-def recommend_by_movie(movie_name, top_n=10):
-    if movie_name not in movie_similarity_df.index:
-        return pd.DataFrame()
-
-    similar = movie_similarity_df[movie_name].sort_values(ascending=False).drop(movie_name)
-
-    counts = data.groupby('title')['rating'].count()
-
-    df = pd.DataFrame({'similarity': similar})
-    df['num_ratings'] = counts
-    df = df[df['num_ratings'] >= 10]
-
-    return df.sort_values('similarity', ascending=False).head(top_n)
-
-# ---------------- HEADER ----------------
+# ---------------- UI ----------------
 st.title("🎬 Movie Recommendation System")
 st.caption("Powered by SVD + Collaborative Filtering")
 
-# ---------------- SIDEBAR ----------------
 st.sidebar.title("🎛️ Controls")
-mode = st.sidebar.radio("Choose Mode", ["User-Based", "Movie-Based"])
 
-# ---------------- USER MODE ----------------
-if mode == "User-Based":
-    st.subheader("👤 Personalized Recommendations")
+# ONLY USER MODE (stable for cloud)
+user_id = st.number_input("Enter User ID", min_value=1, step=1)
 
-    user_id = st.number_input("Enter User ID", min_value=1, step=1)
+if st.button("🔥 Recommend"):
+    with st.spinner("Analyzing preferences..."):
+        time.sleep(1)
+        results = recommend_for_user(user_id, min_ratings=5)
 
-    if st.button("🔥 Recommend"):
-        with st.spinner("Analyzing preferences..."):
-            time.sleep(1)
-            results = recommend_for_user(user_id, min_ratings=5)
+    if results.empty:
+        st.warning("No recommendations found.")
+    else:
+        st.success("Top Picks for You 🎯")
 
-        if results.empty:
-            st.warning("No recommendations found.")
-        else:
-            st.success("Top Picks for You 🎯")
+        cols = st.columns(2)
 
-            cols = st.columns(2)
-
-            for i, (movie, row) in enumerate(results.iterrows()):
-                with cols[i % 2]:
-                    st.markdown(f"### 🎬 {movie}")
-                    st.write(f"⭐ Rating: {row['mean_rating']:.2f}")
-                    st.write(f"📊 Votes: {int(row['num_ratings'])}")
-                    st.write(f"🔥 Score: {row['score']:.2f}")
-                    st.markdown("---")
-
-# ---------------- MOVIE MODE ----------------
-else:
-    st.subheader("🎥 Find Similar Movies")
-
-    movie_list = sorted(data['title'].unique())
-    movie_name = st.selectbox("Select a movie", movie_list)
-
-    if st.button("🎯 Find Similar"):
-        with st.spinner("Finding similar movies..."):
-            time.sleep(1)
-            results = recommend_by_movie(movie_name)
-
-        if results.empty:
-            st.warning("No similar movies found.")
-        else:
-            st.success("You may also like 🍿")
-
-            cols = st.columns(2)
-
-            for i, (movie, row) in enumerate(results.iterrows()):
-                with cols[i % 2]:
-                    st.markdown(f"### 🎬 {movie}")
-                    st.write(f"🔗 Similarity: {row['similarity']:.2f}")
-                    st.write(f"📊 Ratings: {int(row['num_ratings'])}")
-                    st.markdown("---")
+        for i, (movie, row) in enumerate(results.iterrows()):
+            with cols[i % 2]:
+                st.markdown(f"### 🎬 {movie}")
+                st.write(f"⭐ Rating: {row['mean_rating']:.2f}")
+                st.write(f"📊 Votes: {int(row['num_ratings'])}")
+                st.write(f"🔥 Score: {row['score']:.2f}")
+                st.markdown("---")
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
